@@ -29,7 +29,14 @@ public class WeatherAPI : MonoBehaviour
     public float Longitude = 127f;
 
     public delegate void WeatherDataUpdated(Root data);
-    public static WeatherDataUpdated updateCallBack;
+    
+    // REFACTOR(REMOVE) - (26.08.08)
+    // public static WeatherDataUpdated updateCallBack;
+    
+    // REFACTOR(ADD) - (26.08.08)
+    public static event WeatherDataUpdated updateCallBack;
+
+    
 
     Root weatherData;
     public Root data { get { return weatherData; } }
