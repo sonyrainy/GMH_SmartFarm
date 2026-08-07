@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-public class EnviromentManager : MonoBehaviour
+public class EnvironmentManager : MonoBehaviour
 {
     private static EnviromentManager instance;
     public static EnviromentManager inst { get { return instance; } }
