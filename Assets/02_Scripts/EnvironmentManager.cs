@@ -37,6 +37,12 @@ public class EnvironmentManager : MonoBehaviour
         StartCoroutine(DayUpdate());
     }
 
+    // REFACTOR(ADD) - (26.08.08)
+    void OnDestroy()
+    {
+        WeatherAPI.updateCallBack -= TempAndHumidityUpdate;
+    }
+    
     IEnumerator DayUpdate()
     {
         while (year < 2025) 
