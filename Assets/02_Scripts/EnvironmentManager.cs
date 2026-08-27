@@ -1,96 +1,79 @@
+// EnvironmentManager.cs
+// 역할: 과거 날씨 데이터를 하루 단위로 받아,
+// 하루를 짧은 주기(dayDuration)로 재현하며 외부 환경(온도/습도)을 갱신한다.
+
+using System;
 using System.Collections;
 using UnityEngine;
 
-public class EnvironmentManager : MonoBehaviour
-{
-    private static EnviromentManager instance;
-    public static EnviromentManager inst { get { return instance; } }
+namespace SmartFarm {
+    public class EnvironmentManager : MonoBehaviour {
+        public static EnvironmentManager Instance { get; private set; }
 
-    void Awake()
-    {
-        if (instance == null)
-        {
-            instance = this;
+        [Header("시뮬레이션")]
+        [Tooltip("이 해의 1월 1일부터 12월 31일까지 하루씩 재현한다")]
+        [SerializeField] private int simulationYear = 2024;
+        [Tooltip("하루가 실제로 흐르는 시간(초)")]
+        [SerializeField] private float dayDuration = 10f;
+
+        public DateTime CurrentDate { get; private set; }
+        public float Temperature { get; private set; } // °C
+        public int Humidity { get; private set; }      // %
+
+        private bool isWeatherReceived = false;
+
+        private void Awake() {
+            if (Instance != null && Instance != this) {
+                Destroy(gameObject);
+                return;
+            }
+
+            Instance = this;
         }
-        else if (instance != this)
-        {
-            Destroy(gameObject);
+
+        private void Start() {
+            WeatherApi.WeatherDataReceived += OnWeatherDataReceived;
+            StartCoroutine(CoSimulateDays());
         }
-    }
 
-    int year = 2024;
-    int month = 1;
-    int day = 1;
-    float temperature;
-    float humidity;
+        private void OnDestroy() {
+            WeatherApi.WeatherDataReceived -= OnWeatherDataReceived;
+        }
 
-    // 하루 길이 설정
-    [SerializeField]
-    float dayDuration = 10f; 
+        private IEnumerator CoSimulateDays() {
+            if (WeatherApi.Instance == null) {
+                Debug.LogError("씬에 WeatherApi가 없다.");
+                yield break;
+            }
 
-    private bool dataReceived = false;
+            CurrentDate = new DateTime(simulationYear, 1, 1);
 
-    void Start()
-    {
-        // 날씨 데이터 업데이트 콜백 설정
-        WeatherAPI.updateCallBack += TempAndHumidityUpdate;
-        StartCoroutine(DayUpdate());
-    }
+            while (CurrentDate.Year == simulationYear) {
+                isWeatherReceived = false;
+                WeatherApi.Instance.RequestWeather(CurrentDate);
+                yield return new WaitUntil(() => isWeatherReceived);
 
-    // REFACTOR(ADD) - (26.08.08)
-    void OnDestroy()
-    {
-        WeatherAPI.updateCallBack -= TempAndHumidityUpdate;
-    }
-    
-    IEnumerator DayUpdate()
-    {
-        while (year < 2025) 
-        {
-            dataReceived = false;
+                PrintDailyWeather();
+                yield return new WaitForSeconds(dayDuration);
 
-            // 날씨 데이터 요청
-            WeatherAPI.inst.StartGetData(year, month, day);
-
-            // 데이터 업데이트될 때까지 대기
-            yield return new WaitUntil(() => dataReceived);
-
-            PrintDailyWeather();
-
-            // 하루 대기
-            yield return new WaitForSeconds(dayDuration);
-
-            // 날짜 업데이트
-            day++;
-            if (day > System.DateTime.DaysInMonth(year, month))
-            {
-                day = 1;
-                month++;
-                if (month > 12)
-                {
-                    month = 1;
-                    year++;
-                }
+                CurrentDate = CurrentDate.AddDays(1);
             }
         }
-    }
 
-    public void TempAndHumidityUpdate(WeatherAPI.Root _data)
-    {
-        if (_data != null && _data.data != null && _data.data.Length > 0)
-        {
-            temperature = WeatherAPI.KToC(_data.data[0].temp);
-            humidity = _data.data[0].humidity;
-            dataReceived = true;
-        }
-        else
-        {
-            Debug.LogWarning("Invalid data received in TempAndHumidityUpdate.");
-        }
-    }
+        private void OnWeatherDataReceived(WeatherResponse response) {
+            if (response == null || response.data == null || response.data.Length == 0) {
+                Debug.LogWarning("유효하지 않은 날씨 데이터를 받았다.");
+                return;
+            }
 
-    void PrintDailyWeather()
-    {
-        Debug.Log($"Year {year}, Month {month}, Day {day} - Temperature: {temperature:F1}°C, Humidity: {humidity:F1}%");
+            WeatherInfo today = response.data[0];
+            Temperature = WeatherApi.KelvinToCelsius(today.temp);
+            Humidity = today.humidity;
+            isWeatherReceived = true;
+        }
+
+        private void PrintDailyWeather() {
+            Debug.Log($"{CurrentDate:yyyy-MM-dd} - 온도: {Temperature:F1}°C, 습도: {Humidity}%");
+        }
     }
 }
